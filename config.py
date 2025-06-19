@@ -1,8 +1,8 @@
 DATA_PATH = r"E:\text-to-image-2M\data_512_2M"
-VOCAB_FILE = "data/vocab.json"
-MERGES_FILE = "data/merges.txt"
-BATCH_SIZE = 64
+VOCAB_FILE = "vocab.json"
+MERGES_FILE = "merges.txt"
+BATCH_SIZE = 8
 SPLIT_RATIO = 0.9
 MAX_TOKEN = 77
-IMAGE_WIDTH = 512
-IMAGE_HEIGHT = 512
+IMAGE_WIDTH = 128
+IMAGE_HEIGHT = 128
