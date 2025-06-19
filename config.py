@@ -1,7 +1,8 @@
 DATA_PATH = r"E:\text-to-image-2M\data_512_2M"
+SAVE_PATH = "checkpoints"
 VOCAB_FILE = "vocab.json"
 MERGES_FILE = "merges.txt"
-BATCH_SIZE = 8
+BATCH_SIZE = 4
 SPLIT_RATIO = 0.9
 MAX_TOKEN = 77
 IMAGE_WIDTH = 128

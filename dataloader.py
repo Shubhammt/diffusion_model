@@ -13,7 +13,7 @@ class diffusion_dataset():
         
         pool = multiprocessing.Pool(processes=8)
         print("Loading Data ...")
-        folders = os.listdir(path)
+        folders = os.listdir(path)[:2]
         outputs = pool.map(self.get_files, folders)
         for Files in outputs:
             self.files.extend(Files)
@@ -36,7 +36,7 @@ class diffusion_dataset():
 
         image_path = os.path.join(self.path, self.files[idx][0], self.files[idx][1]+'.jpg')
         input_image = Image.open(image_path)
-        # input_image = input_image.resize((IMAGE_WIDTH, IMAGE_HEIGHT))
+        input_image = input_image.resize((IMAGE_WIDTH, IMAGE_HEIGHT))
         input_image_array = (np.array(input_image) - np.array([200,200,200]))/256
         input_image_tensor = torch.tensor(input_image_array, dtype=torch.float32)
         input_image_tensor = input_image_tensor.permute(2, 0, 1)

@@ -5,6 +5,7 @@ from torch.utils.data.dataloader import DataLoader
 from transformers import CLIPTokenizer
 from tqdm import tqdm
 from encoder import *
+from decoder import *
 from clip import *
 
 if __name__ == "__main__":
@@ -28,9 +29,10 @@ if __name__ == "__main__":
     latents_shape = (BATCH_SIZE, 4, 64, 64)
 
     ENCODER = VAE_Encoder().to(device)
-
+    DECODER = VAE_Decoder().to(device)
     CLIP_MODEL = CLIP().to(device)
 
+    torch.cuda.empty_cache()
     for batch in tqdm(train):
         prompt, images = batch
         tokens = tokenizer.batch_encode_plus(
@@ -42,6 +44,7 @@ if __name__ == "__main__":
         
         noise = torch.randn(latents_shape, generator=generator, device=device)
         image_features = ENCODER(images, noise)
+        image = DECODER(image_features)
         text_features = CLIP_MODEL(tokens)
         # print(out.shape)
         # break
