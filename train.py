@@ -7,6 +7,7 @@ from tqdm import tqdm
 from encoder import *
 from decoder import *
 from clip import *
+from diffusion import *
 
 if __name__ == "__main__":
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -31,6 +32,7 @@ if __name__ == "__main__":
     ENCODER = VAE_Encoder().to(device)
     DECODER = VAE_Decoder().to(device)
     CLIP_MODEL = CLIP().to(device)
+    DIFFUSION = Diffusion().to('cuda')
 
     torch.cuda.empty_cache()
     for batch in tqdm(train):
@@ -43,8 +45,9 @@ if __name__ == "__main__":
 
         
         noise = torch.randn(latents_shape, generator=generator, device=device)
-        image_features = ENCODER(images, noise)
-        image = DECODER(image_features)
-        text_features = CLIP_MODEL(tokens)
+        latent = ENCODER(images, noise)
+        context = CLIP_MODEL(tokens)
+        image = DECODER(latent)
+        
         # print(out.shape)
         # break
