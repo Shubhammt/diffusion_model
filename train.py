@@ -8,6 +8,16 @@ from encoder import *
 from decoder import *
 from clip import *
 from diffusion import *
+from ddpm import *
+
+def get_time_embedding(times):
+    # Shape: (160,)
+    freqs = torch.pow(10000, -torch.arange(start=0, end=160, dtype=torch.float32, device=times.device) / 160) 
+    # Shape: (1, 160)
+    x = times[:, None] * freqs[None]
+    # Shape: (1, 160 * 2)
+    return torch.cat([torch.cos(x), torch.sin(x)], dim=-1)
+
 
 if __name__ == "__main__":
     device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -26,28 +36,74 @@ if __name__ == "__main__":
     print("Loading tokenizer ...")
     tokenizer = CLIPTokenizer(vocab_file = VOCAB_FILE, merges_file = MERGES_FILE)
 
+    unconditional_prompts = [UNCONDITIONAL_PROMPT]*BATCH_SIZE
+    unconditional_tokens = tokenizer.batch_encode_plus(
+                unconditional_prompts, padding = "max_length", truncation = True, max_length = MAX_TOKEN
+            ).input_ids
+    unconditional_tokens = torch.tensor(unconditional_tokens, dtype=torch.long, device = device)
+
     generator = torch.Generator(device=device)
     latents_shape = (BATCH_SIZE, 4, 64, 64)
 
     ENCODER = VAE_Encoder().to(device)
     DECODER = VAE_Decoder().to(device)
     CLIP_MODEL = CLIP().to(device)
-    DIFFUSION = Diffusion().to('cuda')
+    DIFFUSION = Diffusion().to(device)
 
+    SAMPLER = DDPMSampler(generator)
+    SAMPLER.set_inference_timesteps(1000)
     torch.cuda.empty_cache()
+
+    Params = list(ENCODER.parameters())+list(DECODER.parameters())+list(CLIP_MODEL.parameters())+list(DIFFUSION.parameters())
+    OPTIMISER = torch.optim.Adam(Params, lr = LR, weight_decay = WD)
+
+    ENCODER.train()
+    DECODER.train()
+    CLIP_MODEL.train()
+    DIFFUSION.train()
+    min_loss = 1000000
     for batch in tqdm(train):
-        prompt, images = batch
-        tokens = tokenizer.batch_encode_plus(
-                    prompt, padding = "max_length", truncation = True, max_length = MAX_TOKEN
+        conditional_prompts, images = batch
+
+        conditional_tokens = tokenizer.batch_encode_plus(
+                    conditional_prompts, padding = "max_length", truncation = True, max_length = MAX_TOKEN
                 ).input_ids
-        tokens = torch.tensor(tokens, dtype=torch.long, device = device)
+        conditional_tokens = torch.tensor(conditional_tokens, dtype=torch.long, device = device)
+
+        tokens = torch.cat([conditional_tokens, unconditional_tokens])
+        context = CLIP_MODEL(tokens)
+
         images = images.to(device)
+        
+        latent_sampling_noise = torch.randn(latents_shape, generator=generator, device=device)
+        latent = ENCODER(images, latent_sampling_noise)
+
+        timesteps = torch.randint(0, 1000, (BATCH_SIZE,)).to(device)
+        time_embeddings = get_time_embedding(timesteps).repeat(2, 1)
+        noisy_latents = SAMPLER.add_noise(latent, timesteps)
+        model_input = noisy_latents
+        model_input = model_input.repeat(2, 1, 1, 1)
 
         
-        noise = torch.randn(latents_shape, generator=generator, device=device)
-        latent = ENCODER(images, noise)
-        context = CLIP_MODEL(tokens)
-        image = DECODER(latent)
+
+        noise_predicted = DIFFUSION(model_input, context, time_embeddings)
+
+        output_cond, output_uncond = noise_predicted.chunk(2)
+        cfg_scale = torch.rand(BATCH_SIZE)[:, None, None, None].repeat(1, 4, 64, 64).to('cuda').to(device)
+        noise_predicted = cfg_scale * (output_cond - output_uncond) + output_uncond
+
+        denoised_predicted = SAMPLER.step(timesteps, noisy_latents, noise_predicted)
+        image_predicted = DECODER(denoised_predicted)
         
+        loss = F.mse_loss(image_predicted, images)
+        loss.backward()
+        OPTIMISER.step()
+
+        OPTIMISER.zero_grad()
+
+        print('loss: ', loss.item())
+        if loss.item() < min_loss:
+            min_loss = loss.item()
+            print('min loss: ', loss.item())
         # print(out.shape)
         # break

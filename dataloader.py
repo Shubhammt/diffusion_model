@@ -32,7 +32,7 @@ class diffusion_dataset():
         
         with open(json_path, 'r') as f:
             data = json.load(f)
-        prompt = data['prompt']
+        conditional_prompt = data['prompt']
 
         image_path = os.path.join(self.path, self.files[idx][0], self.files[idx][1]+'.jpg')
         input_image = Image.open(image_path)
@@ -40,7 +40,7 @@ class diffusion_dataset():
         input_image_array = (np.array(input_image) - np.array([200,200,200]))/256
         input_image_tensor = torch.tensor(input_image_array, dtype=torch.float32)
         input_image_tensor = input_image_tensor.permute(2, 0, 1)
-        return prompt, input_image_tensor
+        return conditional_prompt, input_image_tensor
 if __name__ == "__main__":
     path = r"E:\text-to-image-2M\data_512_2M"
     dataset = diffusion_dataset(path)
