@@ -13,7 +13,7 @@ class diffusion_dataset():
         
         pool = multiprocessing.Pool(processes=8)
         print("Loading Data ...")
-        folders = os.listdir(path)[:2]
+        folders = os.listdir(path)
         outputs = pool.map(self.get_files, folders)
         for Files in outputs:
             self.files.extend(Files)

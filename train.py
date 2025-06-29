@@ -11,11 +11,8 @@ from diffusion import *
 from ddpm import *
 
 def get_time_embedding(times):
-    # Shape: (160,)
-    freqs = torch.pow(10000, -torch.arange(start=0, end=160, dtype=torch.float32, device=times.device) / 160) 
-    # Shape: (1, 160)
+    freqs = torch.pow(10000, -torch.arange(start=0, end=160, dtype=torch.float32, device=times.device) / 160)
     x = times[:, None] * freqs[None]
-    # Shape: (1, 160 * 2)
     return torch.cat([torch.cos(x), torch.sin(x)], dim=-1)
 
 
@@ -51,7 +48,6 @@ if __name__ == "__main__":
     DIFFUSION = Diffusion().to(device)
 
     SAMPLER = DDPMSampler(generator)
-    SAMPLER.set_inference_timesteps(1000)
     torch.cuda.empty_cache()
 
     Params = list(ENCODER.parameters())+list(DECODER.parameters())+list(CLIP_MODEL.parameters())+list(DIFFUSION.parameters())
@@ -61,6 +57,7 @@ if __name__ == "__main__":
     DECODER.train()
     CLIP_MODEL.train()
     DIFFUSION.train()
+
     min_loss = 1000000
     for batch in tqdm(train):
         conditional_prompts, images = batch
@@ -89,10 +86,10 @@ if __name__ == "__main__":
         noise_predicted = DIFFUSION(model_input, context, time_embeddings)
 
         output_cond, output_uncond = noise_predicted.chunk(2)
-        cfg_scale = torch.rand(BATCH_SIZE)[:, None, None, None].repeat(1, 4, 64, 64).to('cuda').to(device)
+        cfg_scale = torch.rand(BATCH_SIZE)[:, None, None, None].repeat(1, 4, 64, 64).to(device)
         noise_predicted = cfg_scale * (output_cond - output_uncond) + output_uncond
 
-        denoised_predicted = SAMPLER.step(timesteps, noisy_latents, noise_predicted)
+        denoised_predicted = SAMPLER.remove_noise(timesteps, noisy_latents, noise_predicted)
         image_predicted = DECODER(denoised_predicted)
         
         loss = F.mse_loss(image_predicted, images)
@@ -105,5 +102,9 @@ if __name__ == "__main__":
         if loss.item() < min_loss:
             min_loss = loss.item()
             print('min loss: ', loss.item())
+            torch.save(ENCODER.state_dict(), 'checkpoints/encoder.pth')
+            torch.save(DECODER.state_dict(), 'checkpoints/decoder.pth')
+            torch.save(CLIP_MODEL.state_dict(), 'checkpoints/clip.pth')
+            torch.save(DIFFUSION.state_dict(), 'checkpoints/diffusion.pth')
         # print(out.shape)
         # break
